@@ -16,8 +16,3 @@ def get_weather_data():
     complete_url = BASE_URL + "lat={}&lon={}&appid={}".format(lat, lon, API_KEY)
     data = req.http_request(complete_url)
     return data
-
-# Exemplo de uso
-if __name__ == "__main__":
-    weather_data = get_weather_data()
-    print(weather_data)  # Imprime os dados climáticos no formato JSON

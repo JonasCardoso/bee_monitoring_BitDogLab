@@ -1,5 +1,6 @@
 import network
 import ufirebase as firebase
+import openweathermap as weather
 import time
 
 GLOB_WLAN = network.WLAN(network.STA_IF)
@@ -22,5 +23,6 @@ while 1:
     segundo = ('00' + gmtime[5])[-2:]
     timestamp = f"{dia}_{mes}_{ano}-{hora}_{minuto}_{segundo}"
     print("Timestamp:", timestamp)
-
-    firebase.put("bee_data/" + timestamp, {"temperatura": 1, "umidade": 2}, bg=0)
+    weather_data = weather.get_weather_data()
+    dados = {"temperatura": 1, "umidade": 2, "som": 2, "pressao": 2, "openweathermap": weather_data}
+    firebase.put("bee_data/" + timestamp, dados, bg=0)
