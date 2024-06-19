@@ -25,7 +25,7 @@ local_time = utime.localtime()
 class SensorsManager:
     def __init__(self):
         self.bme680_internal, self.bme680_external = self.__try_to_set_bme680()
-        
+        print("Setting sensors:")
         self.sensors = {
             'proximity': {'object': self.__set_proximity_sensor(), 'read_method': self.__read_proximity},
             #'internal_sound': {'object': self.__set_internal_sound_sensor(), 'read_method': self.__read_internal_sound},
@@ -40,13 +40,14 @@ class SensorsManager:
             'external_gas': {'object': self.bme680_external, 'read_method': self.__read_gas}
         }
         
-        self.timer = 60
+        self.timer = 10 # Timer currently afecting directly proximity reading time
         self.proximity_counter = 0
     
     def __read_sensors(self):
         readings = {}
 
         for sensor_type in self.sensors:
+            print("Reading now sensor:", sensor_type)
             read_method = self.sensors[sensor_type]['read_method']
             sensor = self.sensors[sensor_type]['object']
 
@@ -73,6 +74,7 @@ class SensorsManager:
 # """
     def sensors_reading(self):
         #print('timer {0}'.format(self.timer))
+        print("Iniciando a leitura dos sensores:")
         while True:
             readings = self.__read_sensors()
 
@@ -86,10 +88,13 @@ class SensorsManager:
             segundo = ('00' + gmtime[5])[-2:]
             timestamp = f"{dia}_{mes}_{ano}-{hora}_{minuto}_{segundo}"
             print("Timestamp:", timestamp)
+            print("Início da coleta do weather_data")
+            weather_data = None
             weather_data = weather.get_weather_data()
+            print("Finalizado a coleta de weather_data")
             sensor_data = {"id_placa": 1, "proximidade": 1,
-                            "temperatura_interna": 1, "umidade_interna": 2, "pressao_interna": 2, "ar_interno": 2,
-                            "temperatura_externa": 1, "umidade_externa": 2, "pressao_externa": 2, "ar_externo": 2}
+                            "temperatura_interna": 1, "umidade_interna": 2, "pressao_interna": 2, "gas_interno": 2,
+                            "temperatura_externa": 1, "umidade_externa": 2, "pressao_externa": 2, "gas_externo": 2}
                             
             dados = {"sensor": sensor_data, "openweathermap": weather_data}
             
@@ -204,6 +209,3 @@ class SensorsManager:
             return None
         else:
             return bme.gas
-
-sensors_manager = SensorsManager()
-start_new_thread(sensors_manager.sensors_reading, ())

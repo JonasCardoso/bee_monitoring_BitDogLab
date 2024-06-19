@@ -6,17 +6,20 @@ import utime
 from _thread import start_new_thread
 from sensors_manager import SensorsManager
 
+REDE = "Jonathan's"
+SENHA = "johnny123"
+
 ### Conexão wi-fi, com rede e senha pré-definidos
-print("Tentando conectar à rede wi-fi Jonathan's:")
 GLOB_WLAN = network.WLAN(network.STA_IF)
 GLOB_WLAN.active(True)
-GLOB_WLAN.connect("Jonathan's", "johnny123")
 
 counter = 0
+print("Tentativas de conexão à rede wi-fi", REDE, ":", end='')
 while not GLOB_WLAN.isconnected():
+    GLOB_WLAN.connect(REDE, SENHA)
     counter += 1
-    print("Não Conectado ", counter)
-    time.sleep(1)
+    print(counter, ", ", end='')
+    time.sleep(4)
     pass
 print("Wi-fi Conectado")
 
