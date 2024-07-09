@@ -6,6 +6,9 @@ import openweathermap as weather
 from machine import Pin, I2C
 from bme680 import *
 from _thread import start_new_thread
+import gc
+
+import ufirebase as firebase
 
 # print("Machine: \t" + uos.uname() [4])
 # print("MicroPython: \t" + uos.uname()[3])
@@ -24,7 +27,8 @@ local_time = utime.localtime()
 
 class SensorsManager:
     def __init__(self):
-        self.bme680_internal, self.bme680_external = self.__try_to_set_bme680()
+#        self.bme680_internal, self.bme680_external = self.__try_to_set_bme680()
+        self.bme680_internal = self.__try_to_set_bme680()
         print("Setting sensors:")
         self.sensors = {
             'proximity': {'object': self.__set_proximity_sensor(), 'read_method': self.__read_proximity},
@@ -34,10 +38,10 @@ class SensorsManager:
             'internal_pressure': {'object': self.bme680_internal, 'read_method': self.__read_pressure},
             'internal_humidity': {'object': self.bme680_internal, 'read_method': self.__read_humidity},
             'internal_gas': {'object': self.bme680_internal, 'read_method': self.__read_gas},
-            'external_temperature': {'object': self.bme680_external, 'read_method': self.__read_temperature},
-            'external_pressure': {'object': self.bme680_external, 'read_method': self.__read_pressure},
-            'external_humidity': {'object': self.bme680_external, 'read_method': self.__read_humidity},
-            'external_gas': {'object': self.bme680_external, 'read_method': self.__read_gas}
+            #'external_temperature': {'object': self.bme680_external, 'read_method': self.__read_temperature},
+            #'external_pressure': {'object': self.bme680_external, 'read_method': self.__read_pressure},
+            #'external_humidity': {'object': self.bme680_external, 'read_method': self.__read_humidity},
+            #'external_gas': {'object': self.bme680_external, 'read_method': self.__read_gas}
         }
         
         self.timer = 10 # Timer currently afecting directly proximity reading time
@@ -47,36 +51,25 @@ class SensorsManager:
         readings = {}
 
         for sensor_type in self.sensors:
+            gc.collect()
             print("Reading now sensor:", sensor_type)
             read_method = self.sensors[sensor_type]['read_method']
             sensor = self.sensors[sensor_type]['object']
 
             reading = read_method(sensor)
+            print("reading", reading)
             readings[sensor_type] = reading
 
         print(readings)
         return readings
 
-# """
-#     def __read_sensors(self):
-#         readings = {}
-#         readings["Temperatura interna"] = self.__read_temperature(self.bme680_internal)
-#         readings["Umidade interna"] = self.__read_humidity(self.bme680_internal)
-#         readings["Pressão interna"] = self.__read_pressure(self.bme680_internal)
-#         readings["Qualidade ar interna"] = self.__read_gas(self.bme680_internal)
-#         
-#         readings["Temperatura externa"] = self.__read_temperature(self.bme680_external)
-#         readings["Umidade externa"] = self.__read_humidity(self.bme680_external)
-#         readings["Pressão externa"] = self.__read_pressure(self.bme680_external)
-#         readings["Qualidade ar externa"] = self.__read_gas(self.bme680_external)
-#         print(readings)
-#         return readings
-# """
     def sensors_reading(self):
-        #print('timer {0}'.format(self.timer))
-        print("Iniciando a leitura dos sensores:")
         while True:
+            
+            gc.collect()
+            print("Iniciando a leitura dos sensores:")
             readings = self.__read_sensors()
+            print("READINGS ", readings)
 
             time.sleep(5)
             gmtime = list(map(str, time.gmtime()))
@@ -88,23 +81,24 @@ class SensorsManager:
             segundo = ('00' + gmtime[5])[-2:]
             timestamp = f"{dia}_{mes}_{ano}-{hora}_{minuto}_{segundo}"
             print("Timestamp:", timestamp)
+            
+            sensor_data = {"id_placa": 1, "proximidade": readings["proximity"],
+                "temperatura_interna": readings["internal_temperature"], "umidade_interna": readings["internal_humidity"], "pressao_interna": readings["internal_pressure"], "gas_interno": readings["internal_gas"],
+#                "temperatura_externa": readings["external_temperature"], "umidade_externa": readings["external_humidity"], "pressao_externa": readings["external_pressure"], "gas_externo": readings["external_gas"]
+               }
+            
+            gc.collect()
             print("Início da coleta do weather_data")
             weather_data = None
             weather_data = weather.get_weather_data()
-            print("Finalizado a coleta de weather_data")
-            sensor_data = {"id_placa": 1, "proximidade": 1,
-                            "temperatura_interna": 1, "umidade_interna": 2, "pressao_interna": 2, "gas_interno": 2,
-                            "temperatura_externa": 1, "umidade_externa": 2, "pressao_externa": 2, "gas_externo": 2}
-                            
+            
+            dados = None                
             dados = {"sensor": sensor_data, "openweathermap": weather_data}
+            dados = {timestamp: dados}
             
-            print("READINGS ", readings)
-            #firebase.put("bee_data/" + timestamp, dados, bg=0)
-            
-            #timestamp = time() * 1000
-            #readings = self.__read_sensors()
-            #return readings
-            #self.database_manager.save_readings(timestamp, readings)
+            gc.collect()
+            print("Tentando patch data")
+            firebase.patch_data(dados)
 
 ### Inicialização microfones
     def __set_internal_sound_sensor(self):
@@ -128,10 +122,9 @@ class SensorsManager:
 ### Leitura sensor de proximidade
     def __read_proximity(self, sensor):
         initial_time = time.time()
-
+        print("Lendo o sensor de proximidade")
         while True:
             if time.time() - initial_time >= self.timer:
-                #print(self.proximity_counter)
                 return self.proximity_counter
             
             if self.__new_day():
@@ -157,12 +150,14 @@ class SensorsManager:
         external_i2c = machine.I2C(0, scl=Pin(25), sda=Pin(24))
         external_bme = BME680_I2C(i2c=external_i2c)
         return external_bme
-
+    
     def __try_to_set_bme680(self):
         bme680_internal = None
         bme680_external = None
         print("Tentando setar os BME680:")
-        while bme680_internal is None or bme680_external is None:
+#        while bme680_internal is None or bme680_external is None:
+        while bme680_internal is None:
+
             try:
                 bme680_internal = self.__set_bme680_internal()
                 print("Internal BME680 set successfully")
@@ -170,20 +165,20 @@ class SensorsManager:
                 print(f'Failed to set internal BME680: {e}')
                 bme680_internal = None
             
-            try:
-                bme680_external = self.__set_bme680_external()
-                print("External BME680 set successfully")
-            except Exception as e:
-                print(f'Failed to set external BME680: {e}')
-                bme680_external = None
-            
-            if bme680_internal is None or bme680_external is None:
-                print('bme bad functioning, trying again in 3 seconds')
-                time.sleep(3)
+#             try:
+#                 bme680_external = self.__set_bme680_external()
+#                 print("External BME680 set successfully")
+#             except Exception as e:
+#                 print(f'Failed to set external BME680: {e}')
+#                 bme680_external = None
+#             
+#             if bme680_internal is None or bme680_external is None:
+            if bme680_internal is None:
+                 print('bme bad functioning, trying again in 3 seconds')
+                 time.sleep(3)
                 
-        return bme680_internal, bme680_external
-
-
+#        return bme680_internal, bme680_external
+        return bme680_internal
 
 ### Leituras BME680
     def __read_temperature(self, bme):
